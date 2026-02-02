@@ -4,13 +4,13 @@ USER root
 
 ARG SIGNAL_CLI_VERSION=0.13.23
 
-# System deps:
-# - default-jre: signal-cli is a Java app
-# - ffmpeg: voice notes / video processing from WhatsApp/Signal
-# - dumb-init: proper PID 1 signal handling in K8s (no zombie processes)
-# - curl: needed for signal-cli install
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    default-jre \
+# Adoptium Temurin repo for JRE 21 (signal-cli 0.13.x needs Java 21+,
+# Bookworm only ships Java 17 via default-jre)
+RUN apt-get update && apt-get install -y --no-install-recommends wget apt-transport-https gnupg && \
+    wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" > /etc/apt/sources.list.d/adoptium.list && \
+    apt-get update && apt-get install -y --no-install-recommends \
+    temurin-21-jre \
     ffmpeg \
     dumb-init \
     curl \
