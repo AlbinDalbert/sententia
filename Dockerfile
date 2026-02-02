@@ -38,11 +38,6 @@ RUN ARCH="$(uname -m)" && \
     fi
 
 ENV SIGNAL_CLI_PATH=/usr/local/bin/signal-cli
-
-# Playwright Chromium -- lets the agent browse the web for you.
-# Only Chromium to keep image size reasonable.
-RUN npx playwright install --with-deps chromium
-
 USER node
 WORKDIR /home/node
 
