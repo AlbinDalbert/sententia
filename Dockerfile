@@ -2,10 +2,7 @@ FROM ghcr.io/openclaw/openclaw:latest
 
 USER root
 
-ARG SIGNAL_CLI_VERSION=0.13.23
-
-# Adoptium Temurin repo for JRE 21 (signal-cli 0.13.x needs Java 21+,
-# Bookworm only ships Java 17 via default-jre)
+# Adoptium Temurin repo for JRE 21
 RUN apt-get update && apt-get install -y --no-install-recommends wget apt-transport-https gnupg && \
     wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" > /etc/apt/sources.list.d/adoptium.list && \
@@ -14,30 +11,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends wget apt-transp
     ffmpeg \
     dumb-init \
     curl \
+    git \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-# Install signal-cli
-RUN curl -fsSL \
-        "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz" \
-    | tar xz -C /opt \
-    && ln -sf "/opt/signal-cli-${SIGNAL_CLI_VERSION}/bin/signal-cli" /usr/local/bin/signal-cli
+# Install kubectl for read-only cluster access
+RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/$(dpkg --print-architecture)/kubectl" \
+    -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl
 
-# signal-cli bundles libsignal_jni.so for x86_64 only.
-# On aarch64 (Raspberry Pi) we swap it with a community ARM64 build.
-# https://github.com/exquo/signal-libs-build
-# /usr/java/packages/lib is on the default java.library.path and takes
-# precedence over the x86_64 .so bundled inside the jar.
-RUN ARCH="$(uname -m)" && \
-    if [ "$ARCH" = "aarch64" ]; then \
-        LIBSIGNAL_VER="$(basename /opt/signal-cli-${SIGNAL_CLI_VERSION}/lib/libsignal-client-*.jar .jar | sed 's/libsignal-client-//')" && \
-        curl -fsSL \
-            "https://github.com/exquo/signal-libs-build/releases/download/libsignal_v${LIBSIGNAL_VER}/libsignal_jni.so-v${LIBSIGNAL_VER}-aarch64-unknown-linux-gnu.tar.gz" \
-        | tar xz && \
-        mkdir -p /usr/java/packages/lib && \
-        mv libsignal_jni.so /usr/java/packages/lib/ ; \
-    fi
+# Install Playwright dependencies and Chromium
+# System deps for Chromium on Debian Bookworm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libatspi2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV SIGNAL_CLI_PATH=/usr/local/bin/signal-cli
+# Install Playwright and Chromium as node user
+USER node
+WORKDIR /home/node
+RUN npm install playwright && npx playwright install chromium
+
 USER node
 WORKDIR /home/node
 
